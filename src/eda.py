@@ -1,132 +1,117 @@
+import streamlit as st
 import pandas as pd
-import plotly.express as px
+import plotly.express as px 
 from data_processing import carregar_dados, preprocessar_dados
+import cluster_module as cm 
 
-df = carregar_dados()
-df = preprocessar_dados(df)
+st.set_page_config(page_title="Dashboard — Projeto Big Data", layout="wide", page_icon="📊")
 
-print("Total de registros após limpeza:", len(df))
+#Estilo / título
+st.title("📊 Dashboard — Projeto Big Data")
+st.markdown("Painel interativo — EDA & Clusterização")
 
+# Carregar dados
+@st.cache_data
+def load_data():
+    try:
+        df = carregar_dados()
+        df = preprocessar_dados(df)
+        return df
+    except Exception as e:
+        st.error(f"Erro ao carregar dados: {e}")
+        return pd.DataFrame()
 
-fig_idade = px.histogram(
-    df,
-    x="idade",
-    nbins=20,
-    title="Distribuição de Idade"
-)
-fig_idade.show()
+df = load_data()
 
+if df.empty:
+    st.stop()
 
-faixas = [0, 1500, 3000, 5000, 8000, 12000, df["salario"].max()]
-faixas_nomes = ["Até 1.500", "1.501 – 3.000", "3.001 – 5.000", "5.001 – 8.000", "8.001 – 12.000", "Acima de 12.000"]
-df["faixa_salarial"] = pd.cut(df["salario"], bins=faixas, labels=faixas_nomes, include_lowest=True)
+#Sidebar com navegação
+st.sidebar.header("Navegação")
+page = st.sidebar.radio("Ir para:", ["Visão Geral", "EDA", "Clusters", "Sobre"])
 
-faixa_freq = df["faixa_salarial"].value_counts().sort_index()
-faixa_freq = faixa_freq.reset_index()
-faixa_freq.columns = ["faixa_salarial", "quantidade"]
+#Pagina: Visão Geral(resumão)
+if page == "Visão Geral":
+    st.header("Visão Geral")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Registros", f"{len(df):,}")
+    col2.metric("Idade média", f"{df['idade'].mean():.1f}")
+    col3.metric("Salário médio", f"R$ {df['salario'].mean():,.2f}")
+    col4.metric("Profissões únicas", f"{df['profissao'].nunique()}")
+    st.markdown("---")
+    st.subheader("Amostra dos dados")
+    st.dataframe(df.head(200))
 
-fig_salario = px.bar(
-    faixa_freq,
-    x="quantidade",
-    y="faixa_salarial",
-    orientation="h",
-    text="quantidade",
-    title="Distribuição por Faixa Salarial",
-    color="quantidade",
-    color_continuous_scale="Blues"
-)
-fig_salario.update_layout(yaxis=dict(categoryorder='array', categoryarray=faixas_nomes))
-fig_salario.update_traces(textposition="outside")
-fig_salario.show()
+#Pagina: EDA
+elif page == "EDA":
+    st.header("Análise Exploratória (EDA)")
+    
+    # Visualização rápida para o Dashboard
+    st.subheader("Distribuição de Idade")
+    fig_idade = px.histogram(df, x="idade", nbins=20, title="Histograma de Idades")
+    st.plotly_chart(fig_idade, use_container_width=True)
 
+    st.subheader("Distribuição Salarial")
+    fig_salario = px.histogram(df, x="salario", nbins=30, title="Histograma de Salários")
+    st.plotly_chart(fig_salario, use_container_width=True)
 
+    st.markdown("---")
+    st.info("Para ver a análise exploratória completa e detalhada (printada no console), execute o arquivo `src/eda.py` separadamente.")
 
-sexo_freq = df["sexo"].value_counts(dropna=False).reset_index()
-sexo_freq.columns = ["sexo", "quantidade"]
-sexo_freq["percentual"] = (sexo_freq["quantidade"] / len(df) * 100).round(2)
+#Pagina: CLUSTERS
+elif page == "Clusters":
+    st.header("Clusters")
+    st.write("Escolha o tipo de cluster e visualize os gráficos interativos.")
 
-fig_sexo = px.bar(
-    sexo_freq,
-    x="quantidade",
-    y="sexo",
-    orientation="h",
-    text="percentual",
-    title="Distribuição por Sexo",
-    color="sexo",
-    color_discrete_map={
-        "Masculino": "#1f77b4",  # azul
-        "Feminino": "#ff69b4",   # rosa
-        "NA": "#808080",
-        None: "#808080"
-    }
-)
-fig_sexo.update_traces(texttemplate="%{text}%")
-fig_sexo.update_layout(yaxis=dict(categoryorder='total ascending'))
-fig_sexo.show()
+    tipo = st.selectbox("Tipo de Cluster", ["Renda + Idade", "Profissional"])
+    k = st.slider("Número de clusters (k)", 2, 6, 4)
 
+    st.markdown("---")
+    
+    if tipo == "Renda + Idade":
+        with st.spinner("Gerando cluster Renda + Idade..."):
+            df_cluster, resumo, figs = cm.cluster_renda_idade(df, k=k)
+        
+        st.subheader("Scatter — Idade x Salário")
+        st.plotly_chart(figs["scatter"], use_container_width=True)
+        
+        c1, c2 = st.columns(2)
+        with c1:
+            st.subheader("Salário Médio por Cluster")
+            st.plotly_chart(figs["salario_medio_bar"], use_container_width=True)
+        with c2:
+            st.subheader("Tamanho dos Clusters")
+            st.plotly_chart(figs["tamanho_cluster"], use_container_width=True)
+            
+        st.subheader("Faixa Etária x Faixa Salarial por Cluster")
+        st.plotly_chart(figs["faixas_facets"], use_container_width=True)
+        
+        st.markdown("---")
+        st.subheader("Resumo numérico")
+        st.dataframe(resumo.style.format({"idade_media":"{:.1f}", "salario_medio":"R$ {:,.2f}"}))
 
-df_cid = df.dropna(subset=["cidade"]).copy()
-df_cid["cidade"] = df_cid["cidade"].str.title()
+    else:
+        with st.spinner("Gerando cluster Profissional..."):
+            df_cluster, resumo, figs = cm.cluster_profissional(df, k=k)
+            
+        st.subheader("Top Profissões por Cluster")
+        st.plotly_chart(figs["top_profissoes"], use_container_width=True)
+        
+        st.subheader("Salário Médio por Profissão")
+        st.plotly_chart(figs["salario_profissao_scatter"], use_container_width=True)
+        
+        st.subheader("Salário Médio por Cluster")
+        st.plotly_chart(figs["salario_medio_cluster"], use_container_width=True)
+        
+        st.markdown("---")
+        st.subheader("Resumo numérico")
+        st.dataframe(resumo.style.format({"idade_media":"{:.1f}", "salario_medio":"R$ {:,.2f}"}))
 
-cid_freq = df_cid["cidade"].value_counts().reset_index()
-cid_freq.columns = ["cidade", "quantidade"]
-
-cid_top10 = cid_freq.head(10).sort_values(by="quantidade", ascending=True)
-
-
-fig_cid_bar = px.bar(
-    cid_top10,
-    x="quantidade",
-    y="cidade",
-    orientation="h",
-    text="quantidade",
-    title="Top 10 Cidades — Quantidade de Pessoas",
-    color="quantidade",
-    color_continuous_scale="Teal"
-)
-fig_cid_bar.update_traces(textposition="outside")
-fig_cid_bar.update_layout(yaxis=dict(categoryorder='total ascending'))
-fig_cid_bar.show()
-
-df_prof = df.dropna(subset=["profissao"]).copy()
-df_prof["profissao"] = df_prof["profissao"].str.title()
-
-prof_freq = df_prof["profissao"].value_counts().reset_index()
-prof_freq.columns = ["profissao", "quantidade"]
-prof_freq["percentual"] = (prof_freq["quantidade"] / len(df_prof) * 100).round(2)
-
-salary_median = df_prof.groupby("profissao")["salario"].median().reset_index()
-salary_median.columns = ["profissao", "salario_mediano"]
-
-prof_final = pd.merge(prof_freq, salary_median, on="profissao")
-
-prof_top10 = prof_final.head(10).sort_values(by="quantidade", ascending=True)
-
-prof_top10["label_text"] = (
-    prof_top10["quantidade"].astype(str) + 
-    " | " + 
-    prof_top10["percentual"].astype(str) + "% | R$ " +
-    prof_top10["salario_mediano"].round(2).astype(str)
-)
-
-fig_prof = px.bar(
-    prof_top10,
-    x="quantidade",
-    y="profissao",
-    orientation="h",
-    text="label_text",
-    color="quantidade",
-    color_continuous_scale="Blues",
-    title="Top 10 Profissões — Quantidade, Percentual e Mediana Salarial"
-)
-fig_prof.update_layout(
-    yaxis=dict(categoryorder='total ascending'),
-    xaxis_title="Quantidade de Pessoas",
-    yaxis_title="Profissão",
-    coloraxis_colorbar_title="Qtd"
-)
-fig_prof.update_traces(textposition="outside")
-
-fig_prof.show()
-
-print("\n=== EDA Concluída com sucesso! ===")
+#Pagina: Sobre
+else:
+    st.header("Sobre o Projeto")
+    st.markdown("""
+    **Projeto:** Análise Exploratória e Clusterização  
+    **Autor:** Leonardo Santana  
+    **Tecnologias:** Python, Pandas, Plotly, Streamlit, Scikit-Learn
+    """)
