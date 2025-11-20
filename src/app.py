@@ -4,10 +4,10 @@ import plotly.express as px
 from data_processing import carregar_dados, preprocessar_dados
 import cluster_module as cm 
 
-st.set_page_config(page_title="Dashboard — Projeto Big Data", layout="wide", page_icon="📊")
+st.set_page_config(page_title="Análise Socioeconómica e Clusterização de Perfis Profissionais", layout="wide", page_icon="📊")
 
 #Estilo / título
-st.title("📊 Dashboard — Projeto Big Data")
+st.title("📊 Análise Socioeconómica e Clusterização de Perfis Profissionais")
 st.markdown("Painel interativo — Análise Exploratória & Clusterização")
 
 #Carrega os dados
@@ -40,12 +40,12 @@ if page == "Visão Geral":
     col4.metric("Profissões Distintas", f"{df['profissao'].nunique()}")
     
     st.markdown("---")
-    st.subheader("🔍 Amostra dos dados (Primeiras 100 linhas)")
+    st.subheader(" Amostra dos dados (Primeiras 100 linhas)")
     st.dataframe(df.head(100), use_container_width=True)
 
 #Pagina: EDA (Análise Exploratória Completa)
 elif page == "EDA":
-    st.header("📈 Análise Exploratória de Dados (EDA)")
+    st.header(" Análise Exploratória de Dados (EDA)")
     
     # Cria uma cópia para não alterar o cache original ao criar colunas novas
     df_eda = df.copy()
@@ -201,21 +201,21 @@ elif page == "Clusters":
             df_cluster, resumo, figs = cm.cluster_renda_idade(df, k=k)
         
         # Layout dos Gráficos
-        st.subheader("📍 Dispersão: Idade vs. Salário")
+        st.subheader("Dispersão: Idade vs. Salário")
         st.plotly_chart(figs["scatter"], use_container_width=True)
         
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("💰 Salário Médio por Grupo")
+            st.subheader("Salário Médio por Grupo")
             st.plotly_chart(figs["salario_medio_bar"], use_container_width=True)
         with c2:
-            st.subheader("👥 Tamanho dos Grupos")
+            st.subheader("Tamanho dos Grupos")
             st.plotly_chart(figs["tamanho_cluster"], use_container_width=True)
             
-        st.subheader("📊 Distribuição: Faixa Etária x Faixa Salarial")
+        st.subheader("Distribuição: Faixa Etária x Faixa Salarial")
         st.plotly_chart(figs["faixas_facets"], use_container_width=True)
         
-        st.markdown("### 📋 Resumo Estatístico")
+        st.markdown("### Resumo Estatístico")
         st.dataframe(resumo.style.format({"idade_media":"{:.1f} anos", "salario_medio":"R$ {:,.2f}"}), use_container_width=True)
 
     else:
@@ -231,7 +231,7 @@ elif page == "Clusters":
         st.subheader("💰 Salário Médio Global do Cluster")
         st.plotly_chart(figs["salario_medio_cluster"], use_container_width=True)
         
-        st.markdown("### 📋 Resumo Estatístico")
+        st.markdown("###Resumo Estatístico")
         st.dataframe(resumo.style.format({"idade_media":"{:.1f} anos", "salario_medio":"R$ {:,.2f}"}), use_container_width=True)
 
 #Pagina:Sobre
